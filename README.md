@@ -1,6 +1,7 @@
 # DurkaDurka API with Python, Flask, SQL Alchemy and MySQL
 
 Simple Table to pull data in and out with:
+
 | col | Detail |
 | --- | --- |
 | id | int - just an auto-incrementing index |
