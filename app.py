@@ -1,6 +1,6 @@
 #!flask/bin/python
 from sqlalchemy import create_engine
-from sqlalchemy.ext.automap import automap_base
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
 
 from flask import Flask, jsonify
@@ -17,10 +17,12 @@ app = Flask(__name__)
 engine = create_engine('mysql+pymysql://kitflask:TPjbaX50bq3s0EJ6@localhost/kits', convert_unicode=True,
                        echo=True, encoding="ISO-8859-1")
 
-# TODO: Automap Stuff--this is probably where I need to swap it out for the Declarative...
-Base = automap_base()
-Base.prepare(engine, reflect=True)
-DurkaDurka = Base.classes.durkadurka
+Base = declarative_base()
+Base.metadata.reflect(engine)
+
+
+class DurkaDurka(Base):
+    __table__ = Base.metadata.tables['durkadurka']
 
 session = scoped_session(sessionmaker(bind=engine))
 
