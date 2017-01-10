@@ -3,10 +3,11 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from flask import Flask, jsonify
 from flask import request, abort, make_response
+from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
-
+ma = Marshmallow(app)
 # ----------------------------------------------------------------------------------------------------------------------
 #
 # Flask_SQLAlchemy Setup to talk to MySQL.
@@ -33,6 +34,22 @@ class DurkaDurka(db.Model):
         self.durka2 = durka2
 
 
+class DurkaDurkaSchema(ma.Schema):
+    class Meta:
+        # Fields to expose
+        fields = ('id', 'durka1', 'durka2')
+
+    # Smart hyperlinking
+    _links = ma.Hyperlinks({
+        'self': ma.URLFor('id', id='<id>'),
+        'collection': ma.URLFor('durka1')
+    })
+
+
+durkadurka_schema = DurkaDurkaSchema()
+durkadurkas_schema = DurkaDurkaSchema(many=True)
+
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
 # Flask Routing functions.
@@ -51,29 +68,32 @@ def not_found():
 #
 @app.route('/ddapi/v1.0/durkadurka', methods=['GET'])
 def get_dd():
-    dd = []
-    for durk in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2):
-        dd.append({"id": durk.id, "durka1": durk.durka1, "durka2": durk.durka2})
-
-    if len(dd) == 0:
-        abort(404)
-
-    return jsonify({'durkadurka': dd})
-
+    # dd = []
+    # for durk in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2):
+    #     dd.append({"id": durk.id, "durka1": durk.durka1, "durka2": durk.durka2})
+    #
+    # if len(dd) == 0:
+    #     abort(404)
+    #
+    # return jsonify({'durkadurka': dd})
+    return durkadurkas_schema.jsonify(db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2))
 
 #
 # Return a specific DurkaDurka given an id.
 #
 @app.route('/ddapi/v1.0/durkadurka/<int:dd_id>', methods=['GET'])
 def get_dd_id(dd_id):
-    dd = []
-    for dt in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == int(dd_id)):
-        print dt
-        dd.append({"id": dt.id, "durka1": dt.durka1, "durka2": dt.durka2})
-
-    if len(dd) == 0:
-        abort(404)
-    return jsonify({'durkadurka': dd})
+    # dd = []
+    # for dt in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == int(dd_id)):
+    #     print dt
+    #     dd.append({"id": dt.id, "durka1": dt.durka1, "durka2": dt.durka2})
+    #
+    # if len(dd) == 0:
+    #     abort(404)
+    # return jsonify({'durkadurka': dd})
+    dds = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == dd_id)
+    return durkadurkas_schema.jsonify(dds)
+    # return jsonify({'error': 'Not found'})
 
 
 #
@@ -94,15 +114,15 @@ def create_dd():
     # I think this is where a declarative_base() may have come in handy--I could just create the .return_json()
     # function in the class instead of querying the DB and manually creating the JSON response here. :(
     #
-    dq = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2) \
-        .filter(DurkaDurka.durka1 == request.json['durka1']) \
-        .filter(DurkaDurka.durka2 == request.json['durka2']) \
-        .one()
-    db.session.flush()
-    dd = {"id": dq.id, "durka1": dq.durka1, "durka2": dq.durka2}
+    # dq = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2) \
+    #     .filter(DurkaDurka.durka1 == request.json['durka1']) \
+    #    .filter(DurkaDurka.durka2 == request.json['durka2']) \
+    #    .one()
+    # db.session.flush()
+    # dd = {"id": dq.id, "durka1": dq.durka1, "durka2": dq.durka2}
 
-    return jsonify({'durkadurka': dd}), 201
-
+    # return jsonify({'durkadurka': dd}), 201
+    return durkadurka_schema.jsonify(i2)
 
 #
 # Update a DurkaDurka's fields with some new data given a DurkaDurka id.
@@ -121,9 +141,10 @@ def update_dd(dd_id):
     # I'll have to come back to this, but postman responded quickly with this second .flush(), slow with the first.
     db.session.flush()
 
-    dd = {"id": dd_id, "durka1": request.json['durka1'], "durka2": request.json["durka2"]}
+    # dd = {"id": dd_id, "durka1": request.json['durka1'], "durka2": request.json["durka2"]}
+    # return jsonify({'durkadurka': dd}), 201
 
-    return jsonify({'durkadurka': dd}), 201
+    return durkadurka_schema.jsonify(record)
 
 
 #
