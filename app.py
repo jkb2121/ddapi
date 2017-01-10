@@ -1,30 +1,37 @@
 #!flask/bin/python
-from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import scoped_session, sessionmaker
 
 from flask import Flask, jsonify
 from flask import request, abort, make_response
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
+
 # ----------------------------------------------------------------------------------------------------------------------
 #
-# SQLAlchemy Setup to talk to MySQL.
+# Flask_SQLAlchemy Setup to talk to MySQL.
 # Note:  Yes, I hard coded my username and password for my local MySQL instance.
-# Change echo=True to false to quiet down the output.
-# Also encoding to ISO-8859-1 to deal with weird characters in my raw DB tables.
+# Do I need to do the encoding to ISO-8859-1 to deal with weird characters in my raw DB tables?
 #
-engine = create_engine('mysql+pymysql://kitflask:TPjbaX50bq3s0EJ6@localhost/kits', convert_unicode=True,
-                       echo=True, encoding="ISO-8859-1")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://kitflask:TPjbaX50bq3s0EJ6@localhost/kits'
+app.config["SQLALCHEMY_ECHO"] = True
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
+db = SQLAlchemy(app)
 
 Base = declarative_base()
-Base.metadata.reflect(engine)
 
 
-class DurkaDurka(Base):
-    __table__ = Base.metadata.tables['durkadurka']
+class DurkaDurka(db.Model):
+    __tablename__ = 'durkadurka'
+    id = db.Column('id', db.Integer, primary_key=True)
+    durka1 = db.Column(db.String(45))
+    durka2 = db.Column(db.String(45))
 
-session = scoped_session(sessionmaker(bind=engine))
+    def __init__(self, durka1, durka2):
+        self.durka1 = durka1
+        self.durka2 = durka2
+
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -32,11 +39,10 @@ session = scoped_session(sessionmaker(bind=engine))
 
 
 #
-# Return some JSON in the event of an error returned.  I should also return a more informative note if one is passed
-# into the function.
+# Return some JSON in the event of an error returned.
 #
 @app.errorhandler(404)
-def not_found(error):
+def not_found():
     return make_response(jsonify({'error': 'Not found'}), 404)
 
 
@@ -46,7 +52,7 @@ def not_found(error):
 @app.route('/ddapi/v1.0/durkadurka', methods=['GET'])
 def get_dd():
     dd = []
-    for durk in session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2):
+    for durk in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2):
         dd.append({"id": durk.id, "durka1": durk.durka1, "durka2": durk.durka2})
 
     if len(dd) == 0:
@@ -61,7 +67,7 @@ def get_dd():
 @app.route('/ddapi/v1.0/durkadurka/<int:dd_id>', methods=['GET'])
 def get_dd_id(dd_id):
     dd = []
-    for dt in session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == int(dd_id)):
+    for dt in db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == int(dd_id)):
         print dt
         dd.append({"id": dt.id, "durka1": dt.durka1, "durka2": dt.durka2})
 
@@ -80,19 +86,19 @@ def create_dd():
         abort(400)
 
     i2 = DurkaDurka(durka1=request.json['durka1'], durka2=request.json['durka2'])
-    session.add(i2)
-    session.commit()
-    session.flush()
+    db.session.add(i2)
+    db.session.commit()
+    db.session.flush()
 
     #
     # I think this is where a declarative_base() may have come in handy--I could just create the .return_json()
     # function in the class instead of querying the DB and manually creating the JSON response here. :(
     #
-    dq = session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2) \
+    dq = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2) \
         .filter(DurkaDurka.durka1 == request.json['durka1']) \
         .filter(DurkaDurka.durka2 == request.json['durka2']) \
         .one()
-    session.flush()
+    db.session.flush()
     dd = {"id": dq.id, "durka1": dq.durka1, "durka2": dq.durka2}
 
     return jsonify({'durkadurka': dd}), 201
@@ -106,20 +112,15 @@ def update_dd(dd_id):
     if not request.json or 'durka1' not in request.json or 'durka2' not in request.json:
         abort(400)
 
-    q = session.query(DurkaDurka).filter(DurkaDurka.id == dd_id)
+    q = db.session.query(DurkaDurka).filter(DurkaDurka.id == dd_id)
     record = q.one()
     record.durka1 = request.json['durka1']
     record.durka2 = request.json['durka2']
-    session.commit()
-    session.flush()
+    db.session.commit()
+    db.session.flush()
     # I'll have to come back to this, but postman responded quickly with this second .flush(), slow with the first.
-    session.flush()
+    db.session.flush()
 
-    #
-    # TODO: I think I need to switch to a declarative_base() from the automap_base()
-    # Again, the declarative_base() may have come in handy here--I could just create the .return_json()
-    # function in the class instead of manually creating the JSON response here. :(
-    #
     dd = {"id": dd_id, "durka1": request.json['durka1'], "durka2": request.json["durka2"]}
 
     return jsonify({'durkadurka': dd}), 201
@@ -131,18 +132,18 @@ def update_dd(dd_id):
 #
 @app.route('/ddapi/v1.0/durkadurka/<int:dd_id>', methods=['DELETE'])
 def delete_dd(dd_id):
-    d = session.query(DurkaDurka).filter(DurkaDurka.id == dd_id).one_or_none()
-    session.flush()
+    d = db.session.query(DurkaDurka).filter(DurkaDurka.id == dd_id).one_or_none()
+    db.session.flush()
 
     if d is None:
-        session.flush()
+        db.session.flush()
         return jsonify({'result': False})
     else:
         try:
-            session.delete(d)
-            session.commit()
-            session.flush()
-            session.flush()  # Trying a second one to get a quick response back.
+            db.session.delete(d)
+            db.session.commit()
+            db.session.flush()
+            db.session.flush()  # Trying a second one to get a quick response back.
             return jsonify({'result': True})
         except:
             return jsonify({'result': False})
