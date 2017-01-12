@@ -17,7 +17,9 @@ ma = Marshmallow(app)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = 'mysql+pymysql://kitflask:TPjbaX50bq3s0EJ6@localhost/kits'
 app.config["SQLALCHEMY_ECHO"] = True
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# app.config["SQLALCHEMY_AUTOFLUSH"] = True
+app.config["SQLALCHEMY_POOL_SIZE"] = 10
 db = SQLAlchemy(app)
 
 Base = declarative_base()
@@ -59,7 +61,7 @@ durkadurkas_schema = DurkaDurkaSchema(many=True)
 # Return some JSON in the event of an error returned.
 #
 @app.errorhandler(404)
-def not_found():
+def not_found(error):
     return make_response(jsonify({'error': 'Not found'}), 404)
 
 
@@ -68,7 +70,9 @@ def not_found():
 #
 @app.route('/ddapi/v1.0/durkadurka', methods=['GET'])
 def get_dd():
-    return durkadurkas_schema.jsonify(db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2))
+    dds = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2)
+    db.session.rollback()
+    return durkadurkas_schema.jsonify(dds)
 
 #
 # Return a specific DurkaDurka given an id.
@@ -76,6 +80,7 @@ def get_dd():
 @app.route('/ddapi/v1.0/durkadurka/<int:dd_id>', methods=['GET'])
 def get_dd_id(dd_id):
     dds = db.session.query(DurkaDurka.id, DurkaDurka.durka1, DurkaDurka.durka2).filter(DurkaDurka.id == dd_id)
+    db.session.rollback()
     return durkadurkas_schema.jsonify(dds)
 
 
@@ -88,10 +93,12 @@ def create_dd():
     if not request.json or 'durka1' not in request.json or 'durka2' not in request.json:
         abort(400)
 
-    i2 = DurkaDurka(durka1=request.json['durka1'], durka2=request.json['durka2'])
-    db.session.add(i2)
     db.session.commit()
+    i2 = DurkaDurka(durka1=request.json['durka1'], durka2=request.json['durka2'])
+    # db.session.flush()
+    db.session.add(i2)
     db.session.flush()
+    db.session.commit()
 
     return durkadurka_schema.jsonify(i2)
 
@@ -107,10 +114,11 @@ def update_dd(dd_id):
     record = q.one()
     record.durka1 = request.json['durka1']
     record.durka2 = request.json['durka2']
+    db.session.flush()
     db.session.commit()
-    db.session.flush()
+
     # I'll have to come back to this, but postman responded quickly with this second .flush(), slow with the first.
-    db.session.flush()
+    # db.session.flush()
 
     return durkadurka_schema.jsonify(record)
 
@@ -121,18 +129,33 @@ def update_dd(dd_id):
 #
 @app.route('/ddapi/v1.0/durkadurka/<int:dd_id>', methods=['DELETE'])
 def delete_dd(dd_id):
-    d = db.session.query(DurkaDurka).filter(DurkaDurka.id == dd_id).one_or_none()
-    db.session.flush()
+    db.session.commit()  # This query is being blocked by the select in the get all!!
+    # db.session.flush()
+    d = None
+    try:
+        d = db.session.query(DurkaDurka).filter(DurkaDurka.id == dd_id).one_or_none()
+    except:
+        return jsonify({'result': False})
+
+    print "---D: {}".format(d)
+    # db.session.flush()
+
+    if type(d) is DurkaDurka:
+        print "d is a DurkaDurka"
+    else:
+        print "d is NOT a DurkaDurka"
 
     if d is None:
-        db.session.flush()
+        # db.session.flush()
         return jsonify({'result': False})
     else:
         try:
+            #db.session.commit()
             db.session.delete(d)
+            #db.session.flush()
             db.session.commit()
-            db.session.flush()
-            db.session.flush()  # Trying a second one to get a quick response back.
+
+            # db.session.flush()  # Trying a second one to get a quick response back.
             return jsonify({'result': True})
         except:
             return jsonify({'result': False})
