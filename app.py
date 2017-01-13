@@ -53,13 +53,13 @@ def validate_durka(indurka):
 class DurkaDurkaSchema(ma.Schema):
     class Meta:
         # Fields to expose
-        fields = ('id', 'durka1', 'durka2')
+        fields = ('id', 'durka1', 'durka2', '_links')
 
-        # # Smart hyperlinking
-        # _links = ma.Hyperlinks({
-        #     'self': ma.URLFor('id', id='<id>'),
-        #     'collection': ma.URLFor('durka1')
-        # })
+    # Smart hyperlinking so now we're HATEOAS.
+    _links = ma.Hyperlinks({
+        'self': ma.URLFor('get_dd_id', dd_id='<id>'),
+        'collection': ma.URLFor('get_dd')
+    })
 
 
 durkadurka_schema = DurkaDurkaSchema()
