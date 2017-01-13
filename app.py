@@ -24,6 +24,8 @@ db = SQLAlchemy(app)
 Base = declarative_base()
 
 
+# wtf
+
 class DurkaDurka(db.Model):
     __tablename__ = 'durkadurka'
     id = db.Column('id', db.Integer, primary_key=True)
