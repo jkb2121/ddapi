@@ -2,7 +2,7 @@
 from sqlalchemy.exc import DataError
 from sqlalchemy.ext.declarative import declarative_base
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask import request, abort, make_response
 from flask_marshmallow import Marshmallow
 from flask_sqlalchemy import SQLAlchemy
@@ -166,6 +166,13 @@ def delete_dd(dd_id):
 def index():
     return "DurkaDurka API"
 
+
+#
+# Trying to return a YAML file so that I can pull this into swagger...
+#
+@app.route('/specs')
+def specs():
+    return send_from_directory('.', 'ddapi.yaml')
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
